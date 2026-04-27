@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Command Center - Phase 5.1 Interactive Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+    .gantt-row:hover { background-color: #f1f5f9; }
+    .fade-in { animation: fadeIn 0.3s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    .modal-overlay { background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
+    .gantt-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+    .gantt-scroll::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+    .gantt-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .gantt-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    .strikethrough { text-decoration: line-through; opacity: 0.8; }
+  </style>
+</head>
+<body class="antialiased text-gray-800 min-h-screen flex flex-col relative">
+
+  <header id="main-header" class="bg-white border-b border-gray-200 px-6 py-4 hidden justify-between items-center z-40 sticky top-0 shadow-sm">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-white font-bold">C</div>
+      <h1 class="text-xl font-bold tracking-tight text-gray-900">Project Command Center</h1>
+    </div>
+    <nav class="hidden md:flex bg-gray-100 p-1 rounded-lg">
+      <button onclick="navigate('command_center')" id="nav-command_center" class="nav-btn px-4 py-1.5 rounded-md text-sm font-medium transition-colors bg-white shadow text-blue-600">Super User Config</button>
+      <button onclick="navigate('dashboard')" id="nav-dashboard" class="nav-btn px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-gray-600 hover:text-gray-900 hover:bg-gray-200">Gantt Dashboard</button>
+      <button onclick="navigate('reports')" id="nav-reports" class="nav-btn px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-gray-600 hover:text-gray-900 hover:bg-gray-200">Reports</button>
+      <button onclick="navigate('audit_log')" id="nav-audit_log" class="nav-btn px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-gray-600 hover:text-gray-900 hover:bg-gray-200">Audit Log</button>
+    </nav>
+    <div class="flex gap-3 items-center">
+       <span id="logged-in-name" class="text-sm font-bold text-gray-700"></span>
+       <button onclick="logout()" class="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded hover:bg-gray-200 font-medium">Logout</button>
+    </div>
+  </header>
+
+  <main class="flex-1 overflow-auto" id="app-container"></main>
+
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Modals -->
+  <div id="proj-modal" class="fixed inset-0 z-50 modal-overlay hidden flex items-center justify-center">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 fade-in border border-gray-200">
+      <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold" id="np-title">Create New Project</h3><button onclick="closeModal('proj-modal')" class="text-gray-400 hover:text-gray-900 text-2xl">&times;</button></div>
+      <form onsubmit="saveProjectData(event)">
+        <input type="hidden" id="np-id" />
+        <div class="space-y-4">
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Project Name</label><input type="text" id="np-name" required class="w-full border rounded-lg p-2.5 text-sm" /></div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Project Type</label><select id="np-type" class="w-full border rounded-lg p-2.5 text-sm"><option value="RND">Engineering R&D</option><option value="CAPEX">CAPEX Build</option></select></div>
+        </div>
+        <div class="mt-8 flex justify-end gap-3"><button type="button" onclick="closeModal('proj-modal')" class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg">Cancel</button><button type="submit" id="np-save-btn" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div id="task-modal" class="fixed inset-0 z-50 modal-overlay hidden flex items-center justify-center">
+    <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 fade-in border border-gray-200">
+      <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold" id="tm-title">Task Editor</h3><button onclick="closeModal('task-modal')" class="text-gray-400 hover:text-gray-900 text-2xl">&times;</button></div>
+      <form onsubmit="saveTaskData(event)">
+        <input type="hidden" id="tm-id" />
+        <input type="hidden" id="tm-project" />
+        <div class="space-y-4">
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Task Name</label><input type="text" id="tm-name" required class="w-full border rounded-lg p-2.5 text-sm font-medium text-gray-900" /></div>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label><input type="date" id="tm-start" required class="w-full border rounded-lg p-2.5 text-sm" /></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">End Date</label><input type="date" id="tm-end" required class="w-full border rounded-lg p-2.5 text-sm" /></div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Assignee</label><select id="tm-assignee" class="w-full border rounded-lg p-2.5 text-sm"></select></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Dependency (Optional)</label><select id="tm-depends" class="w-full border rounded-lg p-2.5 text-sm"></select></div>
+          </div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select id="tm-status" class="w-full border rounded-lg p-2.5 text-sm">
+                 <option value="NOT_STARTED">to-do</option>
+                 <option value="IN_PROGRESS">in-progress</option>
+                 <option value="COMPLETED">completed</option>
+              </select>
+          </div>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">Field Comments</label><textarea id="tm-comment" rows="2" class="w-full border rounded-lg p-2.5 text-sm text-gray-700"></textarea></div>
+        </div>
+        <div class="mt-8 flex justify-end gap-3"><button type="button" onclick="closeModal('task-modal')" class="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg">Cancel</button><button type="submit" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm" id="tm-save-btn">Save Task Details</button></div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // --- STATE ---
+    let defaultState = {
+      view: 'command_center', cmdSub: 'tasks', repSub: 'consolidated', repSelectedProj: null,
+      projectUser: 'Alice',
+      auditLog: [],
+      projects: [
+        { id: '1', name: 'Alpha Reactor Setup', type: 'RND', status: 'Active' },
+        { id: '2', name: 'Site B Server Expansion', type: 'CAPEX', status: 'Active' }
+      ],
+      tasks: [
+        { id: 't1', projectId: '1', name: 'Design Blueprints', status: 'COMPLETED', assignee: 'Alice', startDate: '2026-05-01', endDate: '2026-05-05', dependsOn: '', comment: 'Draft verified by team lead.', completedAt: '2026-05-04' },
+        { id: 't2', projectId: '1', name: 'Procure Parts', status: 'IN_PROGRESS', assignee: 'Bob', startDate: '2026-05-06', endDate: '2026-05-15', dependsOn: 't1', comment: 'Vendor shipments delayed.', completedAt: null },
+        { id: 't3', projectId: '1', name: 'Assembly', status: 'NOT_STARTED', assignee: 'Charlie', startDate: '2026-05-16', endDate: '2026-05-25', dependsOn: 't2', comment: '', completedAt: null },
+        { id: 't4', projectId: '2', name: 'Network Layout', status: 'IN_PROGRESS', assignee: 'Alice', startDate: '2026-05-03', endDate: '2026-05-08', dependsOn: '', comment: 'Running initial cable traces.', completedAt: null },
+      ],
+      users: [
+        { name: 'Alice', email: 'alice@corp.com', mobile: '+1 555-0101', role: 'SUPER_USER', password: 'admin123' },
+        { name: 'Bob', email: 'bob@corp.com', mobile: '+1 555-0202', role: 'PROJECT_USER', password: 'field123' },
+        { name: 'Charlie', email: 'charlie@corp.com', mobile: '+1 555-0303', role: 'PROJECT_USER', password: 'field123' },
+        { name: 'David', email: 'david@corp.com', mobile: '+1 555-0404', role: 'VIEWER', password: 'viewer123' }
+      ]
+    };
+    
+    let state = JSON.parse(localStorage.getItem('pcc_state')) || defaultState;
+    
+    // Auto-repair legacy local storage data
+    if(!state.auditLog) state.auditLog = [];
+    if(!state.users) state.users = defaultState.users;
+    state.users.forEach(u => {
+       if(u.name === 'Alice' && !u.role) u.role = 'SUPER_USER';
+       if(!u.role) u.role = 'PROJECT_USER';
+       if(!u.password) {
+          if(u.role === 'SUPER_USER') u.password = 'admin123';
+          else if(u.role === 'VIEWER') u.password = 'viewer123';
+          else u.password = 'field123';
+       }
+    });
+    if(!state.users.find(u => u.email === 'alice@corp.com')) {
+       state.users.push({ name: 'Alice', email: 'alice@corp.com', mobile: '+1 555-0101', role: 'SUPER_USER', password: 'admin123' });
+    }
+    if(!state.users.find(u => u.email === 'david@corp.com')) {
+       state.users.push({ name: 'David', email: 'david@corp.com', mobile: '+1 555-0404', role: 'VIEWER', password: 'viewer123' });
+    }
+    
+    function persistState() { localStorage.setItem('pcc_state', JSON.stringify(state)); }
+
+    window.logout = function() {
+       sessionStorage.removeItem('pcc_su_logged_in');
+       sessionStorage.removeItem('pcc_role');
+       state.view = 'command_center'; // Reset view
+       render();
+    }
+
+    window.handleLogin = function(e) {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value.trim();
+      const pwd = document.getElementById('login-pwd').value.trim();
+      const u = state.users.find(x => x.email === email && x.password === pwd && (x.role === 'SUPER_USER' || x.role === 'VIEWER'));
+      if(u) {
+         sessionStorage.setItem('pcc_su_logged_in', u.name);
+         sessionStorage.setItem('pcc_role', u.role);
+         if(u.role === 'VIEWER') state.view = 'dashboard';
+         logAction('USER_LOGIN', `User ${u.name} (${u.role}) logged in.`);
+         render();
+      } else {
+         alert("Access Denied. Invalid credentials or insufficient permissions.");
+      }
+    }
+
+    function logAction(action, details) {
+       const u = sessionStorage.getItem('pcc_su_logged_in') || 'System';
+       state.auditLog.unshift({ timestamp: new Date().toLocaleString(), user: u, action: action, details: details });
+       if(state.auditLog.length > 500) state.auditLog.pop(); // keep last 500
+       persistState();
+    }
+
+    function showToast(message) {
+      const toast = document.createElement('div');
+      toast.className = 'bg-gray-800 text-white px-4 py-3 rounded shadow-xl text-sm fade-in border-l-4 border-emerald-500';
+      toast.innerHTML = message;
+      document.getElementById('toast-container').appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    function triggerNotifications(projectName, taskName, assigneeName) {
+      if(!assigneeName) return;
+      const u = state.users.find(x => x.name === assigneeName);
+      if(u) {
+        let msg = `<div class="font-bold mb-1">Assignment Triggered</div>`;
+        if(u.email) msg += `<div>📧 Email sent to: <span class="text-gray-300">${u.email}</span></div>`;
+        if(u.mobile) msg += `<div>💬 WhatsApp sent to: <span class="text-gray-300">${u.mobile}</span></div>`;
+        msg += `<div class="text-xs text-gray-400 mt-2">Content: "${projectName} - ${taskName}" assigned to ${u.name}.</div>`;
+        showToast(msg);
+      }
+    }
+
+    function navigate(viewName) {
+      state.view = viewName;
+      if (viewName === 'reports') { state.repSub = 'consolidated'; state.repSelectedProj = null; }
+      document.querySelectorAll('.nav-btn').forEach(btn => btn.className = "nav-btn px-4 py-1.5 rounded-md text-sm font-medium transition-colors text-gray-600 hover:text-gray-900 hover:bg-gray-200");
+      const activeBtn = document.getElementById(`nav-${viewName}`);
+      if(activeBtn) activeBtn.className = "nav-btn px-4 py-1.5 rounded-md text-sm font-medium transition-colors bg-white shadow text-blue-600";
+      render();
+    }
+    function switchCmdSub(sub) { state.cmdSub = sub; render(); }
+    function switchRepSub(sub, projId = null) { state.repSub = sub; state.repSelectedProj = projId; render(); }
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    // --- DELETIONS ---
+    window.deleteProject = function(id) {
+      if(confirm("Are you sure you want to delete this project and all of its tasks?")) {
+        let p = state.projects.find(x => x.id === id);
+        let n = p ? p.name : id;
+        state.projects = state.projects.filter(p => p.id !== id);
+        state.tasks = state.tasks.filter(t => t.projectId !== id);
+        logAction('DELETE_PROJECT', `Deleted project: ${n}`);
+        render();
+      }
+    }
+    
+    window.deleteTask = function(id) {
+      if(confirm("Are you sure you want to delete this task?")) {
+        let t = state.tasks.find(x => x.id === id);
+        let n = t ? t.name : id;
+        state.tasks = state.tasks.filter(t => t.id !== id);
+        logAction('DELETE_TASK', `Deleted task: ${n}`);
+        render();
+      }
+    }
+
+    window.setprojectUser = function(userName) {
+      state.projectUser = userName;
+      render();
+    }
+
+    // --- FORMS ---
+    function openProjModal(projectId = null) {
+      if(projectId) {
+        const p = state.projects.find(x => x.id === projectId);
+        document.getElementById('np-title').innerText = "Edit Project";
+        document.getElementById('np-id').value = p.id;
+        document.getElementById('np-name').value = p.name;
+        document.getElementById('np-type').value = p.type;
+        document.getElementById('np-save-btn').innerText = "Update Project";
+      } else {
+        document.getElementById('np-title').innerText = "Create New Project";
+        document.getElementById('np-id').value = "";
+        document.getElementById('np-name').value = "";
+        document.getElementById('np-type').value = "RND";
+        document.getElementById('np-save-btn').innerText = "Save Project";
+      }
+      openModal('proj-modal');
+    }
+
+    function saveProjectData(e) {
+      e.preventDefault();
+      const id = document.getElementById('np-id').value;
+      const n = document.getElementById('np-name').value;
+      const t = document.getElementById('np-type').value;
+
+      if(id) {
+         let p = state.projects.find(x => x.id === id);
+         if(p) { p.name = n; p.type = t; }
+         logAction('UPDATE_PROJECT', `Updated project details: ${n}`);
+      } else {
+         state.projects.push({ id: Date.now().toString(), name: n, type: t, status: 'Active' });
+         logAction('CREATE_PROJECT', `Created new project: ${n}`);
+      }
+      closeModal('proj-modal'); e.target.reset(); render();
+    }
+
+    function openTaskModal(projectId, taskId = null) {
+      document.getElementById('tm-project').value = projectId;
+      document.getElementById('tm-assignee').innerHTML = state.users.map(u => `<option value="${u.name}">${u.name}</option>`).join('');
+      const deps = state.tasks.filter(t => t.projectId === projectId && t.id !== taskId);
+      document.getElementById('tm-depends').innerHTML = `<option value="">None</option>` + deps.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+
+      if(taskId) {
+        const t = state.tasks.find(x => x.id === taskId);
+        document.getElementById('tm-title').innerText = "Edit Task Details";
+        document.getElementById('tm-id').value = t.id;
+        document.getElementById('tm-name').value = t.name;
+        document.getElementById('tm-start').value = t.startDate;
+        document.getElementById('tm-end').value = t.endDate;
+        document.getElementById('tm-assignee').value = t.assignee;
+        document.getElementById('tm-depends').value = t.dependsOn || '';
+        document.getElementById('tm-status').value = t.status || 'NOT_STARTED';
+        document.getElementById('tm-comment').value = t.comment || '';
+        document.getElementById('tm-save-btn').innerText = "Update Task";
+      } else {
+        document.getElementById('tm-title').innerText = "Create New Task";
+        document.getElementById('tm-id').value = "";
+        document.getElementById('tm-name').value = "";
+        document.getElementById('tm-start').value = todayStr;
+        document.getElementById('tm-end').value = todayStr;
+        document.getElementById('tm-depends').value = "";
+        document.getElementById('tm-status').value = "NOT_STARTED";
+        document.getElementById('tm-comment').value = "";
+        document.getElementById('tm-save-btn').innerText = "Create Task";
+      }
+      openModal('task-modal');
+    }
+
+    function saveTaskData(e) {
+      e.preventDefault();
+      const id = document.getElementById('tm-id').value;
+      const pid = document.getElementById('tm-project').value;
+      const n = document.getElementById('tm-name').value;
+      const s = document.getElementById('tm-start').value;
+      const end = document.getElementById('tm-end').value;
+      const a = document.getElementById('tm-assignee').value;
+      const d = document.getElementById('tm-depends').value;
+      const stat = document.getElementById('tm-status').value;
+      const c = document.getElementById('tm-comment').value;
+
+      if(id) {
+        let t = state.tasks.find(x => x.id === id);
+        if(t) { 
+          let assigneeChanged = (t.assignee !== a);
+          t.name=n; t.startDate=s; t.endDate=end; t.assignee=a; t.dependsOn=d;
+          if(stat === 'COMPLETED' && t.status !== 'COMPLETED') t.completedAt = todayStr;
+          else if(stat !== 'COMPLETED') t.completedAt = null;
+          t.status=stat; t.comment=c; 
+          logAction('UPDATE_TASK', `Updated task details: ${n} (${stat})`);
+          if(assigneeChanged) {
+            let p = state.projects.find(pr => pr.id === pid);
+            triggerNotifications(p ? p.name : 'Unknown Project', n, a);
+          }
+        }
+      } else {
+        state.tasks.push({ id: 't_' + Date.now(), projectId: pid, name: n, startDate: s, endDate: end, assignee: a, dependsOn: d, comment: c, status: stat, completedAt: (stat === 'COMPLETED' ? todayStr : null) });
+        let p = state.projects.find(pr => pr.id === pid);
+        logAction('CREATE_TASK', `Created new task: ${n}`);
+        triggerNotifications(p ? p.name : 'Unknown Project', n, a);
+      }
+      closeModal('task-modal'); e.target.reset(); render();
+    }
+
+    function handleCSVUpload(event) {
+      const file = event.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const lines = e.target.result.split('\n'); let c = 0;
+        for(let i=1; i<lines.length; i++){
+          if(!lines[i].trim()) continue;
+          const cols = lines[i].split(',').map(x => x.trim());
+          if(cols.length >= 3) { state.users.push({ name: cols[0], email: cols[1], mobile: cols[2], role: 'PROJECT_USER' }); c++; }
+        }
+        alert(`Successfully imported ${c} users! WhatsApp mapped.`); render();
+      };
+      reader.readAsText(file);
+    }
+
+    window.saveManualUser = function(e) {
+      e.preventDefault();
+      const orig = document.getElementById('mu-orig-name').value;
+      const n = document.getElementById('mu-name').value.trim();
+      const em = document.getElementById('mu-email').value.trim();
+      const m = document.getElementById('mu-mobile').value.trim();
+      const pwd = document.getElementById('mu-password').value.trim();
+      const r = document.getElementById('mu-role').value;
+      if(n && em && pwd) {
+        if(orig) {
+           let u = state.users.find(x => x.name === orig);
+           if(u) { u.name=n; u.email=em; u.mobile=m; u.role=r; u.password=pwd; }
+           if(orig !== n) { state.tasks.forEach(t => { if(t.assignee === orig) t.assignee = n; }); }
+           logAction('UPDATE_USER', `Updated profile for user: ${n}`);
+           showToast("User updated successfully.");
+        } else {
+           state.users.push({ name: n, email: em, mobile: m, role: r, password: pwd });
+           logAction('CREATE_USER', `Created new user: ${n} (${r})`);
+           showToast("User added successfully.");
+        }
+        render();
+      }
+    }
+
+    window.editUser = function(name) {
+      let u = state.users.find(x => x.name === name);
+      if(u) {
+        document.getElementById('mu-orig-name').value = u.name;
+        document.getElementById('mu-name').value = u.name;
+        document.getElementById('mu-email').value = u.email;
+        document.getElementById('mu-mobile').value = u.mobile || '';
+        document.getElementById('mu-password').value = u.password || '';
+        document.getElementById('mu-role').value = u.role || 'PROJECT_USER';
+        document.getElementById('mu-title').innerText = "Edit User";
+        document.getElementById('mu-btn').innerText = "Update";
+        document.getElementById('mu-cancel').classList.remove('hidden');
+      }
+    }
+    
+    window.cancelEditUser = function() { render(); }
+
+    window.deleteUser = function(name) {
+      if(confirm(`Are you sure you want to delete user ${name}?`)) {
+        state.users = state.users.filter(x => x.name !== name);
+        state.tasks.forEach(t => { if(t.assignee === name) t.assignee = ''; });
+        logAction('DELETE_USER', `Deleted user: ${name}`);
+        render();
+      }
+    }
+
+    window.updateTaskField = function(taskId, field, val) {
+      let task = state.tasks.find(t => t.id === taskId);
+      if(task) { 
+        task[field] = val; 
+        logAction('UPDATE_TASK_FIELD', `Inline updated ${field} for task: ${task.name}`);
+        if(field === 'assignee') {
+           let p = state.projects.find(pr => pr.id === task.projectId);
+           triggerNotifications(p ? p.name : 'Unknown Project', task.name, val);
+        }
+        render(); 
+      }
+    }
+
+    window.projectCheckIn = function(taskId, statusKey) {
+      let task = state.tasks.find(t => t.id === taskId);
+      if(task) {
+        task.status = statusKey;
+        if(statusKey === 'COMPLETED') task.completedAt = todayStr; else task.completedAt = null;
+        let cmtField = document.getElementById(`cmt-${taskId}`);
+        if(cmtField) task.comment = cmtField.value;
+        render();
+      }
+    }
+
+    window.exportData = function() { alert("Simulated Export! CSV/PDF downloaded."); }
+
+    function renderLogin() {
+      return `
+        <div class="min-h-[80vh] flex items-center justify-center fade-in p-4">
+          <div class="bg-white p-8 rounded-2xl shadow-xl border border-gray-100 max-w-sm w-full text-center">
+            <div class="w-12 h-12 rounded-lg bg-blue-600 text-white font-bold text-xl flex items-center justify-center mx-auto mb-4 shadow-sm">C</div>
+            <h2 class="text-2xl font-bold mb-2">Command Center</h2>
+            <p class="text-sm text-gray-500 mb-8">Admin Access Restricted</p>
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+              <input type="email" id="login-email" required placeholder="Email Address" class="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none focus:border-blue-500 transition-colors" value="alice@corp.com" />
+              <input type="password" id="login-pwd" required placeholder="Password" class="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none focus:border-blue-500 transition-colors" value="admin123" />
+              <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md hover:bg-blue-700 transition-all hover:scale-[1.02]">Login</button>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function render() {
+      persistState();
+      const container = document.getElementById('app-container');
+      const header = document.getElementById('main-header');
+      const loggedInUser = sessionStorage.getItem('pcc_su_logged_in');
+
+      if (!loggedInUser) {
+         header.classList.remove('flex');
+         header.classList.add('hidden');
+         container.innerHTML = renderLogin();
+         return;
+      }
+
+      header.classList.remove('hidden');
+      header.classList.add('flex');
+      
+      const role = sessionStorage.getItem('pcc_role') || 'SUPER_USER';
+      document.getElementById('logged-in-name').innerText = `${loggedInUser} (${role})`;
+      
+      if(role === 'VIEWER') {
+         document.getElementById('nav-command_center').classList.add('hidden');
+      } else {
+         document.getElementById('nav-command_center').classList.remove('hidden');
+      }
+
+      let c = '';
+      if (state.view === 'command_center') c = renderCommandCenter();
+      if (state.view === 'dashboard') c = renderDashboard();
+      if (state.view === 'PROJECT_USER') c = renderprojectUser();
+      if (state.view === 'reports') c = renderReports();
+      if (state.view === 'audit_log') c = renderAuditTrail();
+      container.innerHTML = `<div class="p-6 md:p-8 max-w-7xl mx-auto h-full fade-in">${c}</div>`;
+    }
+
+    // --- VIEW: AUDIT TRAIL ---
+    function renderAuditTrail() {
+       const logRows = state.auditLog.map(log => `
+         <tr class="border-b border-gray-100 hover:bg-gray-50 text-sm">
+           <td class="p-3 text-gray-500">${log.timestamp}</td>
+           <td class="p-3 font-bold text-gray-800">${log.user}</td>
+           <td class="p-3"><span class="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-bold">${log.action}</span></td>
+           <td class="p-3 text-gray-600">${log.details}</td>
+         </tr>
+       `).join('');
+       
+       const content = state.auditLog.length > 0 ? `
+         <table class="w-full text-left border-collapse">
+            <thead class="bg-gray-50 text-xs uppercase text-gray-500 border-b border-gray-200">
+               <th class="p-3">Timestamp</th><th class="p-3">User</th><th class="p-3">Action</th><th class="p-3">Details</th>
+            </thead>
+            <tbody>${logRows}</tbody>
+         </table>
+       ` : `<div class="p-8 text-center text-gray-500">No activity logged yet.</div>`;
+       
+       return `<div class="mb-6"><h2 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-500">System Audit Trail</h2><p class="text-gray-500 text-sm">Real-time log of all administrative and field activities.</p></div><div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">${content}</div>`;
+    }
+
+    // --- VIEW 1: SUPER USER ---
+    function renderCommandCenter() {
+      const tabs = `<div class="flex gap-4 border-b border-gray-200 mb-6"><button onclick="switchCmdSub('tasks')" class="pb-2 font-medium text-sm transition-colors ${state.cmdSub==='tasks'?'border-b-2 border-blue-600 text-blue-600':'text-gray-500 hover:text-gray-800'}">Per-Project Tasks</button><button onclick="switchCmdSub('users')" class="pb-2 font-medium text-sm transition-colors ${state.cmdSub==='users'?'border-b-2 border-blue-600 text-blue-600':'text-gray-500 hover:text-gray-800'}">User Management (CSV)</button></div>`;
+
+      let viewContent = '';
+      if(state.cmdSub === 'tasks') {
+        viewContent = state.projects.map(p => {
+          const pTasks = state.tasks.filter(t => t.projectId === p.id);
+          const rows = pTasks.map(t => `
+            <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+              <td class="p-3 text-sm font-bold text-gray-900">${t.name}</td>
+              <td class="p-3">
+                <select class="text-sm border-gray-300 rounded p-1.5 w-full outline-none focus:border-blue-500" onchange="updateTaskField('${t.id}', 'assignee', this.value)">
+                  ${state.users.map(u => `<option value="${u.name}" ${t.assignee === u.name ? 'selected' : ''}>${u.name}</option>`).join('')}
+                </select>
+              </td>
+              <td class="p-3"><input type="date" onchange="updateTaskField('${t.id}', 'startDate', this.value)" class="border border-gray-300 outline-none focus:border-blue-500 rounded p-1.5 text-sm" value="${t.startDate}" /></td>
+              <td class="p-3"><input type="date" onchange="updateTaskField('${t.id}', 'endDate', this.value)" class="border border-gray-300 outline-none focus:border-blue-500 rounded p-1.5 text-sm" value="${t.endDate}" /></td>
+              <td class="p-3 flex gap-2">
+                <button onclick="openTaskModal('${p.id}', '${t.id}')" class="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-200 font-medium">Edit Details ✏️</button>
+                <button onclick="deleteTask('${t.id}')" class="text-xs bg-red-50 text-red-600 px-3 py-1.5 rounded hover:bg-red-100 font-medium">Delete ❌</button>
+              </td>
+            </tr>
+          `).join('');
+
+          const tableHTML = pTasks.length > 0 ? `
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse whitespace-nowrap">
+                <thead>
+                  <tr class="bg-white text-gray-400 text-xs uppercase border-b border-gray-200"><th class="p-3 font-semibold">Task</th><th class="p-3 font-semibold">Assignee (Inline)</th><th class="p-3 font-semibold">Start (Inline)</th><th class="p-3 font-semibold">End (Inline)</th><th class="p-3 font-semibold">Actions</th></tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>` : `<div class="p-6 text-center text-sm text-gray-500">No tasks mapped to this project yet.</div>`;
+
+          return `
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+              <div class="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="font-bold text-gray-800 text-lg">${p.name} <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded ml-2">${p.type}</span></h3>
+                <div class="flex gap-2">
+                  <button onclick="openTaskModal('${p.id}')" class="text-blue-600 bg-white border border-blue-200 px-3 py-1 rounded shadow-sm text-sm font-bold hover:bg-blue-50 transition-colors">+ Add Task</button>
+                  <button onclick="openProjModal('${p.id}')" class="text-gray-600 bg-white border border-gray-200 px-3 py-1 rounded shadow-sm text-sm font-bold hover:bg-gray-50 transition-colors">Edit Project ✏️</button>
+                  <button onclick="deleteProject('${p.id}')" class="text-red-600 bg-white border border-red-200 px-3 py-1 rounded shadow-sm text-sm font-bold hover:bg-red-50 transition-colors">Delete Project 🗑️</button>
+                </div>
+              </div>
+              ${tableHTML}
+            </div>
+          `;
+        }).join('');
+      } else {
+        const rows = state.users.map(u => `<tr class="border-b border-gray-100 hover:bg-gray-50"><td class="p-3 text-sm font-medium text-gray-900">${u.name}</td><td class="p-3 text-sm text-gray-600">${u.email}</td><td class="p-3 text-sm text-gray-600">${u.mobile || '-'}</td><td class="p-3 text-xs"><span class="${u.role==='SUPER_USER'?'bg-purple-100 text-purple-700':'bg-gray-100 text-gray-600'} px-2 py-1 rounded font-bold">${u.role || 'PROJECT_USER'}</span></td><td class="p-3 flex gap-2"><button onclick="editUser('${u.name}')" class="text-xs bg-gray-100 px-2 py-1 rounded hover:bg-gray-200">Edit</button><button onclick="deleteUser('${u.name}')" class="text-xs bg-red-50 text-red-600 px-2 py-1 rounded hover:bg-red-100">Delete</button></td></tr>`).join('');
+        viewContent = `
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="md:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"><div class="bg-gray-50 px-4 py-3 border-b border-gray-200"><h3 class="font-semibold">Registered Users</h3></div><table class="w-full text-left border-collapse"><thead class="bg-white text-gray-400 text-xs uppercase border-b"><th class="p-3">Name</th><th class="p-3">Email</th><th class="p-3">Mobile (WA)</th><th class="p-3">Role</th><th class="p-3">Actions</th></thead><tbody>${rows}</tbody></table></div>
+            <div class="space-y-6">
+              <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                <h3 class="font-bold mb-4" id="mu-title">Add User Manually</h3>
+                <form onsubmit="saveManualUser(event)" class="space-y-3">
+                  <input type="hidden" id="mu-orig-name" />
+                  <input type="text" id="mu-name" placeholder="Name" required class="w-full border rounded p-2 text-sm outline-none focus:border-blue-500" />
+                  <input type="email" id="mu-email" placeholder="Email" required class="w-full border rounded p-2 text-sm outline-none focus:border-blue-500" />
+                  <input type="text" id="mu-mobile" placeholder="Mobile (WhatsApp)" class="w-full border rounded p-2 text-sm outline-none focus:border-blue-500" />
+                  <input type="password" id="mu-password" placeholder="Password" required class="w-full border rounded p-2 text-sm outline-none focus:border-blue-500" />
+                  <select id="mu-role" class="w-full border rounded p-2 text-sm outline-none focus:border-blue-500"><option value="PROJECT_USER">Project User</option><option value="SUPER_USER">Super User</option><option value="VIEWER">Viewer</option></select>
+                  <div class="flex gap-2"><button type="button" onclick="cancelEditUser()" id="mu-cancel" class="hidden w-1/3 bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded hover:bg-gray-300">Cancel</button><button type="submit" id="mu-btn" class="flex-1 bg-blue-600 text-white text-sm font-bold py-2 rounded hover:bg-blue-700 transition-colors">Add User</button></div>
+                </form>
+              </div>
+              <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4"><div><h3 class="font-bold mb-1">CSV Bulk Upload</h3><p class="text-xs text-gray-500">Headers: Name, Email, Mobile.</p></div><div class="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:bg-gray-50"><label class="cursor-pointer text-blue-600 font-medium text-sm">Browse files<input type="file" accept=".csv" class="hidden" onchange="handleCSVUpload(event)" /></label></div></div>
+            </div>
+          </div>
+        `;
+      }
+
+      return `<div class="mb-6 flex justify-between items-end"><div><h2 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-500">Super User Config</h2></div><button onclick="openProjModal()" class="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium shadow-md hover:scale-105 transition-transform">+ New Project</button></div>${tabs}${viewContent}`;
+    }
+
+    // --- VIEW 2: GANTT ---
+    function renderDashboard() {
+      let minDate = new Date("2099-01-01"); let maxDate = new Date("1970-01-01");
+      state.tasks.forEach(t => { let s = new Date(t.startDate); let e = new Date(t.endDate); if (s < minDate) minDate = s; if (e > maxDate) maxDate = e; });
+      if (minDate > maxDate) { minDate = new Date(); maxDate = new Date(); maxDate.setDate(maxDate.getDate() + 15); }
+      minDate.setDate(minDate.getDate() - 1); maxDate.setDate(maxDate.getDate() + 2);
+      const totalMs = maxDate - minDate; const totalDays = Math.ceil(totalMs / (1000 * 60 * 60 * 24));
+      
+      let headersHTML = '';
+      for (let i = 0; i < totalDays; i++) {
+         let d = new Date(minDate); d.setDate(d.getDate() + i);
+         headersHTML += `<div class="border-l border-gray-200 text-center text-[10px] text-gray-500 py-1" style="width: 40px; shrink: 0;">${d.getDate()}/${d.getMonth()+1}</div>`;
+      }
+
+      const ganttRows = state.projects.map(p => {
+        const projTasks = state.tasks.filter(t => t.projectId === p.id);
+        const taskBars = projTasks.map(t => {
+          let s = new Date(t.startDate); let e = new Date(t.endDate);
+          let leftPct = ((s - minDate) / totalMs) * 100; let widthPct = (((e - s) + (1000*60*60*24)) / totalMs) * 100;
+          let color = t.status === 'COMPLETED' ? 'bg-emerald-500 border border-emerald-600' : t.status === 'IN_PROGRESS' ? 'bg-blue-500' : 'bg-gray-300';
+          let doneIcon = t.status === 'COMPLETED' ? '✅' : '';
+          let textClass = t.status === 'COMPLETED' ? 'strikethrough text-emerald-100' : '';
+
+          return `
+            <div class="flex items-center h-10 border-b border-gray-50 gantt-row">
+              <div class="w-48 shrink-0 px-4 text-sm font-medium truncate flex justify-between items-center">
+                <span class="${t.status === 'COMPLETED' ? 'text-gray-400 line-through' : 'text-gray-700'}">${t.name}</span>
+                <span class="text-xs">${doneIcon}</span>
+              </div>
+              <div class="relative flex-1 h-full shadow-inner bg-gray-50/50" style="min-width: ${totalDays * 40}px">
+                <div class="absolute h-6 rounded-md top-2 flex items-center px-2 shadow-sm text-[10px] font-bold text-white overflow-hidden whitespace-nowrap ${color}" 
+                     style="left: ${leftPct}%; width: ${widthPct}%;">
+                     <span class="${textClass}">${t.name}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        return `<div class="mb-6"><div class="bg-gray-100 font-bold px-4 py-2 border-y border-gray-200 text-sm flex justify-between"><span>${p.name}</span><span class="text-blue-600 bg-blue-100 px-2 py-0.5 rounded text-xs">${p.type}</span></div>${taskBars}</div>`;
+      }).join('');
+
+      return `
+        <div class="mb-8"><h2 class="text-2xl font-bold text-gray-900">Portfolio Timeline</h2></div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+           <div class="flex bg-gray-50 border-b border-gray-200 overflow-x-hidden">
+             <div class="w-48 shrink-0 py-2 px-4 shadow-sm z-10 text-xs font-bold text-gray-500 uppercase">Tasks</div>
+             <div class="flex gantt-scroll overflow-x-auto" style="min-width: ${totalDays * 40}px">${headersHTML}</div>
+           </div>
+           <div class="overflow-y-auto max-h-[600px] overflow-x-auto gantt-scroll">${ganttRows}</div>
+        </div>
+      `;
+    }
+
+    // --- VIEW 4: REPORTS ---
+    function renderReports() {
+      const tabs = `<div class="flex gap-4 border-b border-gray-200 mb-8"><button onclick="switchRepSub('consolidated')" class="pb-2 text-sm ${state.repSub==='consolidated'?'border-b-2 border-blue-600 text-blue-600':'text-gray-500'}">Consolidated View</button><button onclick="switchRepSub('list')" class="pb-2 text-sm ${state.repSub==='list'?'border-b-2 border-blue-600 text-blue-600':'text-gray-500'}">Individual Project Reports</button></div>`;
+      let content = '';
+      if (state.repSub === 'consolidated') {
+         content = `<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"><div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm border-t-4 border-t-blue-500"><h4 class="text-gray-500 text-sm font-bold uppercase mb-2">Total Projects</h4><p class="text-4xl font-extrabold text-gray-900">${state.projects.length}</p></div><div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-center"><button onclick="exportData()" class="bg-black text-white w-full py-3 rounded-xl font-bold shadow hover:scale-[1.02] transition-transform">Extract Master Report (CSV)</button></div></div>`;
+      } else {
+        if (state.repSelectedProj) {
+           const pTasks = state.tasks.filter(t => t.projectId === state.repSelectedProj);
+           const logHTML = pTasks.map(t => `<tr class="border-b border-gray-100 hover:bg-gray-50"><td class="p-3 text-sm font-bold">${t.name}</td><td class="p-3 text-xs text-gray-500">${t.startDate} to ${t.endDate}</td><td class="p-3 text-sm font-bold ${t.status==='COMPLETED'?'text-emerald-600':'text-amber-500'}">${t.status}</td><td class="p-3 text-xs text-gray-500">${t.completedAt || '-'}</td><td class="p-3 text-sm italic text-gray-600">"${t.comment || ''}"</td></tr>`).join('');
+           content = `<div><button onclick="switchRepSub('list')" class="text-sm text-gray-500 hover:underline mb-4">&larr; Back</button><div class="bg-white p-8 rounded-xl shadow-sm border border-gray-200"><div class="flex justify-between items-start mb-6 border-b border-gray-100 pb-4"><h3 class="text-2xl font-bold">Detailed Analytics Extract</h3><button onclick="exportData()" class="bg-emerald-50 text-emerald-700 px-4 py-2 border rounded hover:bg-emerald-100 font-bold text-sm shadow-sm">Export Data</button></div><table class="w-full text-left border-collapse"><thead class="bg-gray-50 text-xs uppercase text-gray-500"><th class="p-2">Task</th><th class="p-2">Plan Dates</th><th class="p-2">Status</th><th class="p-2">Completed On</th><th class="p-2">Field Comment</th></thead><tbody>${logHTML}</tbody></table></div></div>`;
+        } else {
+          content = `<div class="grid grid-cols-2 gap-4">${state.projects.map(p => `<div onclick="switchRepSub('list', '${p.id}')" class="bg-white p-5 rounded-xl border border-gray-200 hover:border-blue-400 hover:shadow cursor-pointer font-bold transition-all text-gray-800">${p.name} &rarr;</div>`).join('')}</div>`;
+        }
+      }
+      return `<div class="mb-4"><h2 class="text-2xl font-bold text-blue-700">Reports Directory</h2></div>${tabs}${content}`;
+    }
+
+    render();
+  </script>
+  <!-- Bottom Right Logo -->
+  <img src="logo.png" alt="Company Logo" class="fixed bottom-4 right-4 h-16 w-auto z-[100] opacity-90 shadow-md rounded-md bg-white p-1 pointer-events-none" />
+</body>
+</html>
