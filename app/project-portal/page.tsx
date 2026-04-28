@@ -11,7 +11,7 @@ const defaultState = {
 };
 
 export default function ProjectPortal() {
-  const [state, setState] = useState(defaultState);
+  const [state, setState] = useState<any>(defaultState);
   const [loggedInUser, setLoggedInUser] = useState<string | null>(null);
   const [email, setEmail] = useState('bob@corp.com');
   const [password, setPassword] = useState('Project123');
