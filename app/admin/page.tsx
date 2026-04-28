@@ -158,7 +158,7 @@ export default function AdminPortal() {
   const openProjModalFn = (projectId: string | null = null) => {
     if(projectId) {
       const p = state.projects.find((x: any) => x.id === projectId);
-      setProjFormData({ id: p.id, name: p.name, type: p.type });
+      if (p) setProjFormData({ id: p.id, name: p.name, type: p.type });
     } else {
       setProjFormData({ id: '', name: '', type: 'RND' });
     }
@@ -181,7 +181,7 @@ export default function AdminPortal() {
   const openTaskModalFn = (projectId: string, taskId: string | null = null) => {
     if(taskId) {
       const t = state.tasks.find((x: any) => x.id === taskId);
-      setTaskFormData({ ...t, projectId });
+      if (t) setTaskFormData({ ...t, projectId });
     } else {
       setTaskFormData({ id: '', projectId, name: '', startDate: todayStr, endDate: todayStr, assignee: '', dependsOn: '', status: 'NOT_STARTED', comment: '' });
     }
@@ -193,6 +193,7 @@ export default function AdminPortal() {
     const { id, projectId, name, startDate, endDate, assignee, dependsOn, status, comment } = taskFormData;
     if(id) {
       const t = state.tasks.find((x: any) => x.id === id);
+      if (!t) return;
       const assigneeChanged = t.assignee !== assignee;
       const completedAt = status === 'COMPLETED' ? (t.status !== 'COMPLETED' ? todayStr : t.completedAt) : null;
       
